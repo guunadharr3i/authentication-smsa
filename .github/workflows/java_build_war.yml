@@ -1,0 +1,164 @@
+name: Build and Release WAR
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on tags like v1.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '8'
+
+      - name: Build WAR with Maven
+        run: mvn clean package
+
+      - name: Upload WAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-war
+          path: target/*.war
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download WAR from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: java-war
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: '*.war'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Create Jira Ticket and Upload WAR
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          # Step 1: Create issue payload
+          cat <<EOF > payload.json
+          {
+            "fields": {
+              "project": {
+                "key": "QWERTY"
+              },
+              "summary": "WAR build and release successful - ${TAG_NAME}",
+              "description": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Automated build and GitHub release completed for tag ${TAG_NAME}."
+                      }
+                    ]
+                  }
+                ]
+              },
+              "issuetype": {
+                "name": "Task"
+              },
+              "assignee": {
+                "accountId": "712020:36ead6fe-f24c-4782-81e5-b6865783aed8"
+              }
+            }
+          }
+          EOF
+
+          # Step 2: Create Jira issue
+          ISSUE_RESPONSE=$(curl -s -X POST \
+            --url "https://guunadharrnv.atlassian.net/rest/api/3/issue" \
+            --user "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data @payload.json)
+
+          ISSUE_KEY=$(echo "$ISSUE_RESPONSE" | jq -r '.key')
+
+          if [ "$ISSUE_KEY" == "null" ] || [ -z "$ISSUE_KEY" ]; then
+            echo "❌ Failed to create Jira issue. Response: $ISSUE_RESPONSE"
+            exit 1
+          fi
+
+          echo "✅ Created Jira issue: $ISSUE_KEY"
+
+
+          # Step 3: Find the WAR file and upload it
+          WAR_FILE=$(find . -name "*.war" | head -n 1)
+
+          curl -s -X POST \
+            --url "https://guunadharrnv.atlassian.net/rest/api/3/issue/${ISSUE_KEY}/attachments" \
+            --user "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+            --header "X-Atlassian-Token: no-check" \
+            --header "Content-Type: multipart/form-data" \
+            --form "file=@${WAR_FILE}"
+
+          # Step 4: Add comment to the issue
+          curl -s -X POST \
+            --url "https://guunadharrnv.atlassian.net/rest/api/3/issue/${ISSUE_KEY}/comment" \
+            --user "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "{
+            \"body\": {
+              \"type\": \"doc\",
+              \"version\": 1,
+              \"content\": [
+                {
+                  \"type\": \"paragraph\",
+                  \"content\": [
+                    {
+                      \"type\": \"text\",
+                      \"text\": \"WAR file uploaded: authentication_smsa.war\"
+                    }
+                  ]
+                },
+                {
+                  \"type\": \"paragraph\",
+                  \"content\": [
+                    {
+                      \"type\": \"text\",
+                      \"text\": \"Download Link: \",
+                      \"marks\": []
+                    },
+                    {
+                      \"type\": \"text\",
+                      \"text\": \"Click here\",
+                      \"marks\": [
+                        {
+                          \"type\": \"link\",
+                          \"attrs\": {
+                            \"href\": \"https://guunadharrnv.atlassian.net/rest/api/3/attachment/content/10000\"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }"
+
+
