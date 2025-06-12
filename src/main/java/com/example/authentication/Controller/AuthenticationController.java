@@ -1,6 +1,5 @@
 package com.example.authentication.Controller;
 
-
 import com.example.authentication.Pojo.AuthenticationRequest;
 import com.example.authentication.service.AuthenticationService;
 import com.example.authentication.Entity.SmsaRole;
@@ -25,7 +24,6 @@ public class AuthenticationController {
     @Autowired
     private AuthenticationService authenticationService;
 //    private LdapService ldapService;
-
 
     @GetMapping("/")
     public String hello(Model model) {
@@ -53,10 +51,10 @@ public class AuthenticationController {
     @PostMapping("/authenticate")
     public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) throws Exception {
 
-      boolean isValidUser = validateUser(authenticationRequest.getUsername(), authenticationRequest.getPassword());
+        boolean isValidUser = validateUser(authenticationRequest.getUsername(), authenticationRequest.getPassword());
 
 //        SmsaUser ldapData=ldapService.ldapAuthService(authenticationRequest);
-        SmsaUser userData=authenticationService.getUserByLoginId(authenticationRequest.getUsername());
+        SmsaUser userData = authenticationService.getUserByLoginId(authenticationRequest.getUsername());
         if (!isValidUser) {
             return ResponseEntity.status(401).body("Invalid credentials");
         }
@@ -70,13 +68,22 @@ public class AuthenticationController {
     public ResponseEntity<?> createUserRole(@RequestBody Map<String, String> requestData) throws Exception {
 
         Map<String, SmsaRole> tokens = new HashMap<>();
-        tokens.put("Roles",authenticationService.creteUserRoleData(requestData));
+        tokens.put("Roles", authenticationService.creteUserRoleData(requestData));
 
         return ResponseEntity.ok(tokens);
     }
 
     private boolean validateUser(String username, String password) {
         return true;
+    }
+
+    @PostMapping("/createUser")
+    public ResponseEntity<?> createUser(@RequestBody Map<String, String> requestData) throws Exception {
+
+        Map<String, SmsaUser> tokens = new HashMap<>();
+        tokens.put("User Created", authenticationService.creteUser(requestData));
+
+        return ResponseEntity.ok(tokens);
     }
 
 }

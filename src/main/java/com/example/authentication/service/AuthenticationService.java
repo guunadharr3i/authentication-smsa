@@ -7,8 +7,6 @@ import com.example.authentication.Entity.SmsaUser;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -21,7 +19,6 @@ import java.util.Map;
 import io.jsonwebtoken.*;
 
 @Service
-@Slf4j
 public class AuthenticationService {
 
     private final UserRepository userRepository;
@@ -113,6 +110,29 @@ public class AuthenticationService {
         role.setIsActive(requestDat.get("IS_ACTIVE"));
         role.setCreatedDate(LocalDateTime.now());
         return smsaRoleRepository.save(role);
+    }
+
+    public SmsaUser creteUser(Map<String, String> requestData) {
+
+        SmsaUser user = new SmsaUser();
+        user.setLoginId(requestData.get("loginId"));
+        user.setUsername(requestData.get("username"));
+        user.setEmail(requestData.get("email"));
+        user.setPasswordHash(requestData.get("passwordHash"));
+        user.setFirstName(requestData.get("firstName"));
+        user.setLastName(requestData.get("lastName"));
+        user.setDepartment(requestData.get("department"));
+        user.setBicAccessList(requestData.get("bicAccessList"));
+        user.setIsActive(requestData.getOrDefault("isActive", "Y"));
+        user.setCreatedDate(LocalDateTime.now());
+        user.setPasswordChanged(LocalDateTime.now());
+        user.setFailedLoginAttempts(0);
+        user.setLastLogin(null);
+        user.setAccountLockedUntil(null);
+        user.setAccessToken(null); // optional
+
+        return userRepository.save(user);
+
     }
 
 }
