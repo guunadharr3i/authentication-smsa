@@ -1,8 +1,12 @@
 package com.example.authentication.service;
 
+
 import com.example.authentication.Pojo.AuthenticationRequest;
 import com.example.authentication.Entity.SmsaUser;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
+
 import javax.naming.AuthenticationException;
 import javax.naming.CommunicationException;
 import javax.naming.NamingEnumeration;
@@ -12,15 +16,15 @@ import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
 import java.util.Hashtable;
 
-
 @Service
 public class LdapService {
+
+    private static final Logger logger = LogManager.getLogger(LdapService.class);
 
     static String lHostName = "10.24.153.129";
     static String lDomainName = "icicibankltd.com";
     static String lPort = "389";
     static String lLDAPAppl = "ldap";
-
     static boolean domainStatus = false;
 
     public SmsaUser ldapAuthService(AuthenticationRequest request) throws NamingException {
@@ -28,75 +32,87 @@ public class LdapService {
 
         try {
             lEnv = constructEnvironment(request.getUsername(), request.getPassword(), lDomainName, lHostName);
-            System.out.println("Hi here before");
+            logger.info("Constructed LDAP environment for user: {}", request.getUsername());
+
             LdapContext lLdapContext = new InitialLdapContext(lEnv, null);
-            System.out.println("Constructing Protocol: " + lLdapContext.getEnvironment().get("java.naming.provider.url"));
+            logger.info("Connected to LDAP server: {}", lLdapContext.getEnvironment().get("java.naming.provider.url"));
+
             boolean isAuthenticated = authenticateLDAPUser(lLdapContext, request.getUsername(), request.getPassword(), lDomainName);
 
             if (isAuthenticated) {
-                SmsaUser userDetails = findAccountByAccountName(lLdapContext, "DC=icicibankltd,DC=com", request.getUsername());
-                return userDetails;
+                return findAccountByAccountName(lLdapContext, "DC=icicibankltd,DC=com", request.getUsername());
             } else {
-                throw new NamingException("User authentication failed due to invalid credentials.");
+                throw new NamingException("User authentication failed: Invalid credentials.");
             }
+
         } catch (CommunicationException cex) {
-            System.err.println("Communication Exception: " + cex.getMessage());
-            throw new NamingException("Unable to connect to the LDAP server. Please check the server address, port, and network connectivity.");
+            logger.error("CommunicationException during LDAP auth: {}", cex.getMessage(), cex);
+            throw new NamingException("Unable to connect to the LDAP server.");
         } catch (AuthenticationException aex) {
-            throw new NamingException("Invalid credentials provided. Authentication failed.");
+            logger.error("AuthenticationException: {}", aex.getMessage(), aex);
+            throw new NamingException("Invalid credentials.");
         } catch (Exception ex) {
-            throw new NamingException("An unexpected error occurred during LDAP authentication: " + ex.getMessage());
+            logger.error("Unexpected error in LDAP authentication: {}", ex.getMessage(), ex);
+            throw new NamingException("Unexpected error in LDAP authentication: " + ex.getMessage());
         }
     }
-    public static SmsaUser findAccountByAccountName(DirContext ctx, String ldapSearchBase, String accountName)
-            throws NamingException {
-        System.out.println("Enter");
-        String userId = null;
+
+    public static SmsaUser findAccountByAccountName(DirContext ctx, String ldapSearchBase, String accountName) throws NamingException {
         SmsaUser userDetails = new SmsaUser();
+        String userId = null;
+
         try {
             String searchFilter = "(&(objectClass=user)(sAMAccountName=" + accountName + "))";
             SearchControls searchControls = new SearchControls();
-            searchControls.setSearchScope(2);
-            NamingEnumeration results = ctx.search(ldapSearchBase, searchFilter, searchControls);
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+
+            NamingEnumeration<SearchResult> results = ctx.search(ldapSearchBase, searchFilter, searchControls);
+
             while (results.hasMore()) {
-                SearchResult sr = (SearchResult) results.next();
+                SearchResult sr = results.next();
+
                 if (userId == null) {
                     userId = sr.getNameInNamespace();
                 }
 
-                Attributes answer = sr.getAttributes();
-                printAttrs(answer);
                 Attributes attrs = sr.getAttributes();
+                logAttributes(attrs);
+
                 if (attrs != null) {
                     userDetails.setLoginId(getAttributeValue(attrs, "mailNickname"));
-                    userDetails.setFirstName(getAttributeValue(attrs, "givenName") != null ? getAttributeValue(attrs, "givenName") : null); // Common Name
-                   userDetails.setEmail(getAttributeValue(attrs, "mail") != null ? getAttributeValue(attrs, "mail") : null);
+                    userDetails.setFirstName(getAttributeValue(attrs, "givenName"));
+                    userDetails.setEmail(getAttributeValue(attrs, "mail"));
                 }
             }
+
         } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("Execption while findAccountByAccountName");
+            logger.error("Exception while finding account by accountName: {}", e.getMessage(), e);
         }
-        System.out.println("Exiting with user id :" + userId);
+
+        logger.info("User LDAP ID resolved as: {}", userId);
         return userDetails;
     }
-    static void printAttrs(Attributes attrs) {
-        if (attrs == null) {
-            System.out.println("No attributes");
-        } else
-            try {
-                NamingEnumeration ae = attrs.getAll();
-                while (ae.hasMore()) {
-                    Attribute attr = (Attribute) ae.next();
-                    System.out.println("attribute: " + attr.getID());
 
-                    for (NamingEnumeration e = attr.getAll(); e.hasMore();) {
-                        System.out.println("value: " + e.next());
-                    }
+    private static void logAttributes(Attributes attrs) {
+        if (attrs == null) {
+            logger.info("No attributes found.");
+            return;
+        }
+
+        try {
+            NamingEnumeration<? extends Attribute> ae = attrs.getAll();
+            while (ae.hasMore()) {
+                Attribute attr = ae.next();
+                logger.info("Attribute: {}", attr.getID());
+
+                NamingEnumeration<?> values = attr.getAll();
+                while (values.hasMore()) {
+                    logger.info(" - Value: {}", values.next());
                 }
-            } catch (NamingException e) {
-                e.printStackTrace();
             }
+        } catch (NamingException e) {
+            logger.error("Error while printing LDAP attributes: {}", e.getMessage(), e);
+        }
     }
 
     private static String getAttributeValue(Attributes attrs, String attributeName) {
@@ -106,72 +122,48 @@ public class LdapService {
                 return (String) attr.get();
             }
         } catch (NamingException e) {
-            e.printStackTrace();
+            logger.error("Error getting attribute [{}]: {}", attributeName, e.getMessage(), e);
         }
         return null;
     }
 
-    private static Hashtable constructEnvironment(String pAdminUser, String pAdminPassword, String pDomainName, String lHostName) {
-        Hashtable lEnv = new Hashtable();
-        System.out.println("\n************************");
-        System.out.println("      Constructing LDAP Environment !!!");
-        System.out.println("************************\n");
+    private static Hashtable<String, String> constructEnvironment(String username, String password, String domainName, String hostName) {
+        Hashtable<String, String> lEnv = new Hashtable<>();
+        logger.info("Constructing LDAP environment for: {}@{}", username, domainName);
+
         lEnv.put("java.naming.factory.initial", "com.sun.jndi.ldap.LdapCtxFactory");
         lEnv.put("java.naming.referral", "follow");
-        lEnv.put("java.naming.security.principal", pAdminUser + "@" + pDomainName);
-        System.out.println(" \nConstructing Environment through Configured LDAP ADMIN User : " + pAdminUser + "@" + pDomainName + "  !!!");
-        lEnv.put("java.naming.security.credentials", pAdminPassword);
+        lEnv.put("java.naming.security.principal", username + "@" + domainName);
+        lEnv.put("java.naming.security.credentials", password);
         lEnv.put("java.naming.security.authentication", "simple");
-
-        lEnv.put("java.naming.provider.url", lLDAPAppl + "://" + lHostName + ":" + lPort);
-        // (Optional) Connection timeout (in milliseconds)
+        lEnv.put("java.naming.provider.url", lLDAPAppl + "://" + hostName + ":" + lPort);
         lEnv.put("com.sun.jndi.ldap.connect.timeout", "20000");
-
-        // (Optional) Read timeout (in milliseconds)
         lEnv.put("com.sun.jndi.ldap.read.timeout", "20000");
 
-        System.out.println("\n************************");
-        System.out.println("\t\t\t\tLDAP Enviornment Constructed Successfully !!!!! ");
-        System.out.println("************************\n");
         return lEnv;
     }
 
-    public static boolean authenticateLDAPUser(LdapContext pLdapContext, String pUsername, String pPassword, String pDomainName) {
-        System.out.println("\n************************");
-        System.out.println("\tAuthenticating Users on LDAP Servers !!!!!");
-        System.out.println("************************\n");
+    public static boolean authenticateLDAPUser(LdapContext ldapContext, String username, String password, String domainName) {
         try {
-            boolean pDomainFlag = true;
-
-            if (pDomainFlag) {
-                if ((pDomainName != null) && (pDomainName.trim().length() != 0)) {
-                    pUsername = pUsername + "@" + pDomainName.trim();
-                    System.out.println("LDAP Normal User Name : " + pUsername);
-                    System.out.println("Domain Name : " + pDomainName);
-                } else {
-                    pDomainName = lDomainName;
-                    System.out.println("Domain Name : " + pDomainName);
-                    pUsername = pUsername + ((pDomainName != null) ? "@" + pDomainName : "");
-                }
+            if (domainName != null && !domainName.trim().isEmpty()) {
+                username = username + "@" + domainName.trim();
             }
 
-            pLdapContext.addToEnvironment("java.naming.security.principal", pUsername);
-            System.out.println("Passing & Checking UserName on LDAP Server .......");
-            pLdapContext.addToEnvironment("java.naming.security.credentials", pPassword);
-            System.out.println("Passing & Checking Passwprd on LDAP Server .........");
-            pLdapContext.reconnect(null);
+            ldapContext.addToEnvironment("java.naming.security.principal", username);
+            ldapContext.addToEnvironment("java.naming.security.credentials", password);
+            ldapContext.reconnect(null);
 
-            System.out.println("\n*******************************");
-            System.out.println("     Authentication of User " + pUsername + " on LDAP Server Successfull !!!!!");
-            System.out.println("*******************************\n");
+            logger.info("Authentication successful for user: {}", username);
             return true;
+
         } catch (AuthenticationException aex) {
-            System.out.println("Invalid Credentials Supplied");
+            logger.error("Authentication failed: Invalid credentials for user {}", username);
         } catch (NamingException nex) {
-            System.out.println("Naming Exception Occured");
+            logger.error("NamingException during authentication: {}", nex.getMessage(), nex);
         } catch (Exception ex) {
-            System.out.println("LDAP User Authentication Failed");
+            logger.error("Unexpected error during LDAP user authentication: {}", ex.getMessage(), ex);
         }
+
         return false;
     }
 }

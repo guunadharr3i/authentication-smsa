@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpStatus;
 
-/**
- *
- * @author abcom
- */
 @RestController
 @RequestMapping
 @CrossOrigin(origins = "*")
@@ -23,18 +23,22 @@ public class AuthenticationController {
 
     @Autowired
     private AuthenticationService authenticationService;
-//    private LdapService ldapService;
+
+    private static final Logger logger = LogManager.getLogger(AuthenticationController.class);
 
     @GetMapping("/")
     public String hello(Model model) {
-        return "Hello, welcome to Spring Boot!"; // Refers to hello.html inside templates folder
+        logger.info("AuthenticationController -> hello endpoint called");
+        return "Hey Developer! Authentication Application Deployed Successfully";
     }
 
     @PostMapping("/refresh-token")
     public ResponseEntity<?> validateAndRefreshAccessToken(@RequestBody Map<String, String> tokenRequest) {
+        logger.info("AuthenticationController -> refresh-token called");
         String oldToken = tokenRequest.get("token");
 
         if (oldToken == null || oldToken.isEmpty()) {
+            logger.warn("No token provided for refresh");
             return ResponseEntity.badRequest().body("Token is required");
         }
 
@@ -42,48 +46,94 @@ public class AuthenticationController {
             String newAccessToken = authenticationService.validateToken(oldToken);
             Map<String, String> response = new HashMap<>();
             response.put("accessToken", newAccessToken);
+            logger.info("Token refreshed successfully");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Token refresh failed: {}", e.getMessage(), e);
             return ResponseEntity.status(401).body("Invalid or expired token: " + e.getMessage());
         }
     }
 
     @PostMapping("/authenticate")
-    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) throws Exception {
+    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) {
+        logger.info("AuthenticationController -> authenticate called for user: {}", authenticationRequest.getUsername());
 
-        boolean isValidUser = validateUser(authenticationRequest.getUsername(), authenticationRequest.getPassword());
+        try {
+            boolean isValidUser = validateUser(authenticationRequest.getUsername(), authenticationRequest.getPassword());
 
-//        SmsaUser ldapData=ldapService.ldapAuthService(authenticationRequest);
-        SmsaUser userData = authenticationService.getUserByLoginId(authenticationRequest.getUsername());
-        if (!isValidUser) {
-            return ResponseEntity.status(401).body("Invalid credentials");
+            SmsaUser userData = authenticationService.getUserByLoginId(authenticationRequest.getUsername());
+            if (!isValidUser) {
+                logger.warn("Invalid login attempt for user: {}", authenticationRequest.getUsername());
+                return ResponseEntity.status(401).body("Invalid credentials");
+            }
+
+            Map<String, String> tokens = new HashMap<>();
+            tokens.put("accessToken", userData.getAccessToken());
+
+            logger.info("User authenticated successfully: {}", authenticationRequest.getUsername());
+            return ResponseEntity.ok(tokens);
+
+        } catch (Exception e) {
+            logger.error("Authentication failed for user: {}", authenticationRequest.getUsername(), e);
+            return ResponseEntity.status(500).body("Authentication failed: " + e.getMessage());
         }
-        Map<String, String> tokens = new HashMap<>();
-        tokens.put("accessToken", userData.getAccessToken());
-
-        return ResponseEntity.ok(tokens);
     }
 
     @PostMapping("/user/role")
-    public ResponseEntity<?> createUserRole(@RequestBody Map<String, String> requestData) throws Exception {
+    public ResponseEntity<?> createUserRole(@RequestBody Map<String, String> requestData) {
+        logger.info("AuthenticationController -> user/role called");
 
-        Map<String, SmsaRole> tokens = new HashMap<>();
-        tokens.put("Roles", authenticationService.creteUserRoleData(requestData));
+        try {
+            Map<String, SmsaRole> tokens = new HashMap<>();
+            tokens.put("Roles", authenticationService.creteUserRoleData(requestData));
 
-        return ResponseEntity.ok(tokens);
-    }
-
-    private boolean validateUser(String username, String password) {
-        return true;
+            logger.info("User role created successfully");
+            return ResponseEntity.ok(tokens);
+        } catch (Exception e) {
+            logger.error("Error creating user role", e);
+            return ResponseEntity.status(500).body("Error creating user role: " + e.getMessage());
+        }
     }
 
     @PostMapping("/createUser")
-    public ResponseEntity<?> createUser(@RequestBody Map<String, String> requestData) throws Exception {
+    public ResponseEntity<?> createUser(@RequestBody Map<String, String> requestData) {
+        logger.info("AuthenticationController -> createUser called");
 
-        Map<String, SmsaUser> tokens = new HashMap<>();
-        tokens.put("User Created", authenticationService.creteUser(requestData));
+        try {
+            Map<String, SmsaUser> tokens = new HashMap<>();
+            tokens.put("User Created", authenticationService.creteUser(requestData));
 
-        return ResponseEntity.ok(tokens);
+            logger.info("User created successfully");
+            return ResponseEntity.ok(tokens);
+        } catch (Exception e) {
+            logger.error("Error creating user", e);
+            return ResponseEntity.status(500).body("Error creating user: " + e.getMessage());
+        }
     }
 
+    private boolean validateUser(String username, String password) {
+        logger.debug("Validating user: {}", username);
+        return true;
+    }
+     @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpServletRequest request) {
+        logger.debug("Inside Logout Method");
+
+        try {
+            String token = request.getHeader("Authorization");
+
+            if (token == null || token.isEmpty()) {
+                logger.warn("Authorization token missing in request header");
+                return new ResponseEntity<>("Authorization token is missing", HttpStatus.BAD_REQUEST);
+            }
+
+            logger.info("Token received: {}", token);
+            return authenticationService.logout(token);
+
+        } catch (Exception e) {
+            logger.error("Error occurred during logout: ", e);
+            return new ResponseEntity<>("Internal Server Error during logout", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
+    
