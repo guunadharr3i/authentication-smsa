@@ -6,6 +6,9 @@ import com.example.authentication.Repo.SmsaRoleRepository;
 import com.example.authentication.Repo.UserRepository;
 import com.example.authentication.Entity.SmsaRole;
 import com.example.authentication.Entity.SmsaUser;
+import com.example.authentication.Entity.UserSessionToken;
+import com.example.authentication.Pojo.AuthenticationRequest;
+import com.example.authentication.Repo.UserSessionTokenRepository;
 import io.jsonwebtoken.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,14 +30,16 @@ public class AuthenticationService {
 
     private final UserRepository userRepository;
     private final SmsaRoleRepository smsaRoleRepository;
+    private final UserSessionTokenRepository userSessionTokenRepository;
 
     private static final String SECRET_KEY = "mySuperSecureSecretKeyThatIsAtLeast32Bytes!";
     private static final long EXPIRATION_TIME = 10 * 60 * 3000; // 10 minutes
     private static final long REFRESH_TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-    public AuthenticationService(UserRepository userRepository, SmsaRoleRepository smsaRoleRepository) {
+    public AuthenticationService(UserRepository userRepository, SmsaRoleRepository smsaRoleRepository,UserSessionTokenRepository userSessionTokenRepository) {
         this.userRepository = userRepository;
         this.smsaRoleRepository = smsaRoleRepository;
+        this.userSessionTokenRepository = userSessionTokenRepository;
     }
 
     public SmsaUser getUserByLoginId(String loginId) {
@@ -171,7 +176,7 @@ public class AuthenticationService {
             throw new RuntimeException("Failed to create user: " + e.getMessage());
         }
     }
-    public ResponseEntity<String> logout(String token) {
+    public ResponseEntity<String> logout(String token,String deviceHash) {
         logger.debug("Inside logout method");
 
         try {
@@ -190,6 +195,12 @@ public class AuthenticationService {
 
             String loginId = claims.getId();
             logger.debug("Parsed loginId from token: {}", loginId);
+            UserSessionToken userSessionToken=userSessionTokenRepository.findByTokenAndDeviceHash(token,deviceHash);
+            if(userSessionToken.getToken()==null){
+                return new ResponseEntity<>("Already logged out.", HttpStatus.NOT_FOUND);
+            }
+            userSessionToken.setToken(null);
+            userSessionTokenRepository.save(userSessionToken);
 
             SmsaUser data = getUserByLoginId(loginId);
 
@@ -219,5 +230,47 @@ public class AuthenticationService {
             logger.error("Unexpected error during logout", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error during logout");
         }
+    }
+    public void validateUserDevice(AuthenticationRequest authenticationRequest,String token) {
+
+        UserSessionToken userSessionTokenData=userSessionTokenRepository.findByUserIdAndDeviceHashAndStatusTrue(authenticationRequest.getUsername(), authenticationRequest.getDeviceHase());
+
+        SmsaUser user = userRepository.findByLoginId(userSessionTokenData.getUserId());
+       
+        
+        if (userSessionTokenData==null){
+            UserSessionToken userSessionToken=new UserSessionToken();
+            userSessionToken.setUserId(authenticationRequest.getUsername());
+            userSessionToken.setDeviceHash(authenticationRequest.getDeviceHase());
+            userSessionToken.setToken(token);
+            userSessionToken.setStatus(true);
+            userSessionTokenRepository.save(userSessionToken);
+        }
+        userSessionTokenData.setToken(user.getAccessToken());
+         userSessionTokenRepository.save(userSessionTokenData);
+    }
+
+    public void verifyValidateUserDevice(String token,String newAccessToken,String deviceHash) {
+
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        String loginId = claims.getId();
+        UserSessionToken userSessionTokenData=userSessionTokenRepository.findByUserIdAndTokenAndDeviceHashAndStatusTrue(loginId,token, deviceHash);
+
+        if (userSessionTokenData==null){
+            throw new JwtException("Token Device token and hash ");
+        }
+        if(userSessionTokenData.getToken()==null){
+            throw new JwtException("Please login token and hash expire.");
+        }
+
+        userSessionTokenData.setToken(newAccessToken);
+        userSessionTokenRepository.save(userSessionTokenData);
+
+
     }
 }

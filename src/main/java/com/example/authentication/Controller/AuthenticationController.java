@@ -44,6 +44,7 @@ public class AuthenticationController {
 
         try {
             String newAccessToken = authenticationService.validateToken(oldToken);
+            authenticationService.verifyValidateUserDevice(oldToken,newAccessToken,tokenRequest.get("DeviceHash"));
             Map<String, String> response = new HashMap<>();
             response.put("accessToken", newAccessToken);
             logger.info("Token refreshed successfully");
@@ -66,6 +67,7 @@ public class AuthenticationController {
                 logger.warn("Invalid login attempt for user: {}", authenticationRequest.getUsername());
                 return ResponseEntity.status(401).body("Invalid credentials");
             }
+            authenticationService.validateUserDevice(authenticationRequest,userData.getAccessToken());
 
             Map<String, String> tokens = new HashMap<>();
             tokens.put("accessToken", userData.getAccessToken());
@@ -121,6 +123,7 @@ public class AuthenticationController {
 
         try {
             String token = request.getHeader("Authorization");
+            String deviceHash=request.getHeader("DeviceHash");
 
             if (token == null || token.isEmpty()) {
                 logger.warn("Authorization token missing in request header");
@@ -128,7 +131,7 @@ public class AuthenticationController {
             }
 
             logger.info("Token received: {}", token);
-            return authenticationService.logout(token);
+            return authenticationService.logout(token,deviceHash);
 
         } catch (Exception e) {
             logger.error("Error occurred during logout: ", e);

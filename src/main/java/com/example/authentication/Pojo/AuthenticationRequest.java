@@ -5,6 +5,7 @@ public class AuthenticationRequest {
 
     private String username;
     private String password;
+    private String deviceHase;
 
     /**
      * @return the username
@@ -32,5 +33,13 @@ public class AuthenticationRequest {
      */
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getDeviceHase() {
+        return deviceHase;
+    }
+
+    public void setDeviceHase(String deviceHase) {
+        this.deviceHase = deviceHase;
     }
 }
