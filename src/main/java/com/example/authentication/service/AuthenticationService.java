@@ -235,20 +235,23 @@ public class AuthenticationService {
 
     public void validateUserDevice(AuthenticationRequest authenticationRequest, String token) {
 
-        UserSessionToken userSessionToken = userSessionTokenRepository.findByUserIdAndDeviceHashAndStatusTrue(authenticationRequest.getUsername(), authenticationRequest.getDeviceHase());
-        if (userSessionToken == null) {
+        UserSessionToken userSessionTokenData=userSessionTokenRepository.findByUserIdAndDeviceHashAndStatusTrue(authenticationRequest.getUsername(), authenticationRequest.getDeviceHase());
+
+        SmsaUser user = userRepository.findByLoginId(authenticationRequest.getUsername());
+
+
+        if (userSessionTokenData==null){
+            UserSessionToken userSessionToken=new UserSessionToken();
             userSessionToken.setUserId(authenticationRequest.getUsername());
             userSessionToken.setDeviceHash(authenticationRequest.getDeviceHase());
             userSessionToken.setToken(token);
             userSessionToken.setStatus(true);
             userSessionTokenRepository.save(userSessionToken);
+        }else {
+            userSessionTokenData.setToken(user.getAccessToken());
+            userSessionTokenRepository.save(userSessionTokenData);
         }
-        SmsaUser user = userRepository.findByLoginId(userSessionToken.getUserId());
-
-        userSessionToken.setToken(user.getAccessToken());
-        userSessionTokenRepository.save(userSessionToken);
     }
-
     public void verifyValidateUserDevice(String token, String newAccessToken, String deviceHash) {
 
         Claims claims = Jwts.parserBuilder()
