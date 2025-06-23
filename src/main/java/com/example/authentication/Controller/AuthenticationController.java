@@ -4,13 +4,16 @@ import com.example.authentication.Pojo.AuthenticationRequest;
 import com.example.authentication.service.AuthenticationService;
 import com.example.authentication.Entity.SmsaRole;
 import com.example.authentication.Entity.SmsaUser;
+import com.example.authentication.service.LdapService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import javax.naming.NamingException;
 import javax.servlet.http.HttpServletRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,6 +26,9 @@ public class AuthenticationController {
 
     @Autowired
     private AuthenticationService authenticationService;
+
+    @Autowired
+    private LdapService ldapAuthService;
 
     private static final Logger logger = LogManager.getLogger(AuthenticationController.class);
 
@@ -54,10 +60,22 @@ public class AuthenticationController {
             return ResponseEntity.status(401).body("Invalid or expired token: " + e.getMessage());
         }
     }
-
-    @PostMapping("/authenticate")
-    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) {
+    @PostMapping("/ladp")
+    public ResponseEntity<?> ldpLogin(@RequestBody AuthenticationRequest authenticationRequest) throws NamingException {
         logger.info("AuthenticationController -> authenticate called for user: {}", authenticationRequest.getUsername());
+        logger.info("Enter in LDAP Authentication");
+        SmsaUser ldpData = ldapAuthService.ldapAuthService(authenticationRequest);
+        logger.info("Successfully LDAP Authentication is Done");
+        return ResponseEntity.status(401).body("Successfully  LDAP Authentication is Done");
+    }
+
+
+        @PostMapping("/authenticate")
+    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) throws NamingException {
+        logger.info("AuthenticationController -> authenticate called for user: {}", authenticationRequest.getUsername());
+        logger.info("Enter in LDAP Authentication");
+        SmsaUser ldpData=ldapAuthService.ldapAuthService(authenticationRequest);
+        logger.info("Successfully LDAP Authentication is Done");
 
         try {
             boolean isValidUser = validateUser(authenticationRequest.getUsername(), authenticationRequest.getPassword());
@@ -110,6 +128,19 @@ public class AuthenticationController {
         } catch (Exception e) {
             logger.error("Error creating user", e);
             return ResponseEntity.status(500).body("Error creating user: " + e.getMessage());
+        }
+    }
+    @GetMapping("/getUsers")
+    public ResponseEntity<?> getUsers() {
+        try {
+            List<SmsaUser> userList = authenticationService.getUsers();
+            logger.info("Users fetched successfully");
+            return ResponseEntity.ok(userList);
+        } catch (Exception e) {
+            logger.error("Error fetching users", e);
+            // Return a meaningful error response
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while fetching users: " + e.getMessage());
         }
     }
 

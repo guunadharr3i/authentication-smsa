@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -154,7 +155,6 @@ public class AuthenticationService {
             user.setLoginId(requestData.get("loginId"));
             user.setUsername(requestData.get("username"));
             user.setEmail(requestData.get("email"));
-            user.setPasswordHash(requestData.get("passwordHash"));
             user.setFirstName(requestData.get("firstName"));
             user.setLastName(requestData.get("lastName"));
             user.setDepartment(requestData.get("department"));
@@ -175,6 +175,10 @@ public class AuthenticationService {
             logger.error("Error creating user: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to create user: " + e.getMessage());
         }
+    }
+    public List<SmsaUser> getUsers() {
+        return userRepository.findAll();
+
     }
 
     public ResponseEntity<String> logout(String token, String deviceHash) {

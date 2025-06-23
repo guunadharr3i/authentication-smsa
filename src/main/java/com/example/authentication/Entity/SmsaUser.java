@@ -24,9 +24,6 @@ public class SmsaUser implements Serializable{
     @Column(name = "EMAIL", unique = true, nullable = false)
     private String email;
 
-    @Column(name = "PASSWORD_HASH", nullable = false)
-    private String passwordHash;
-
     @Column(name = "FIRST_NAME")
     private String firstName;
 
@@ -114,20 +111,6 @@ public class SmsaUser implements Serializable{
      */
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    /**
-     * @return the passwordHash
-     */
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    /**
-     * @param passwordHash the passwordHash to set
-     */
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
     }
 
     /**
