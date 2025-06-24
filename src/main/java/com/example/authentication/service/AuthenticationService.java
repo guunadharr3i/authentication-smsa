@@ -201,10 +201,11 @@ public class AuthenticationService {
             String loginId = claims.getId();
             logger.debug("Parsed loginId from token: {}", loginId);
             UserSessionToken userSessionToken = userSessionTokenRepository.findByTokenAndDeviceHash(token, deviceHash);
-            if (userSessionToken.getToken() == null) {
+            if (userSessionToken.getToken() == null || userSessionToken.getStatus().equals(false)) {
                 return new ResponseEntity<>("Already logged out.", HttpStatus.NOT_FOUND);
             }
             userSessionToken.setToken(null);
+            userSessionToken.setStatus(false);
             userSessionTokenRepository.save(userSessionToken);
 
             SmsaUser data = getUserByLoginId(loginId);
