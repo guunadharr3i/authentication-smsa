@@ -266,7 +266,7 @@ public class AuthenticationService {
                 .getBody();
 
         String loginId = claims.getId();
-        UserSessionToken userSessionTokenData = userSessionTokenRepository.findByUserIdAndTokenAndDeviceHashAndStatusTrue(loginId, token, deviceHash);
+        UserSessionToken userSessionTokenData = userSessionTokenRepository.findByUserIdAndDeviceHashAndStatusTrue(loginId, deviceHash);
 
         if (userSessionTokenData == null) {
             throw new JwtException("Token Device token and hash ");
