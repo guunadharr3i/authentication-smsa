@@ -2,6 +2,7 @@ package com.example.authentication.service;
 
 import com.example.authentication.CustomExceptions.CustomException;
 import com.example.authentication.CustomExceptions.SmsaErrorCodes;
+import com.example.authentication.Pojo.UserLoginDetailsResponse;
 import com.example.authentication.Repo.SmsaRoleRepository;
 import com.example.authentication.Repo.UserRepository;
 import com.example.authentication.Entity.SmsaRole;
@@ -9,15 +10,21 @@ import com.example.authentication.Entity.SmsaUser;
 import com.example.authentication.Entity.UserSessionToken;
 import com.example.authentication.Pojo.AuthenticationRequest;
 import com.example.authentication.Repo.UserSessionTokenRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +41,14 @@ public class AuthenticationService {
     private final UserSessionTokenRepository userSessionTokenRepository;
 
     private static final String SECRET_KEY = "mySuperSecureSecretKeyThatIsAtLeast32Bytes!";
-    private static final long EXPIRATION_TIME = 10 * 60 * 3000; // 10 minutes
-    private static final long REFRESH_TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+    private static final long EXPIRATION_TIME = 10 * 60 * 3000; // 30 minutes
+    private static final long REFRESH_TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000; //
+    private static final String encrypt="1836204826394192";
+
+//    private static final String ALGO = "AES";
+    public static String ALGORITHM = "AES/CBC/PKCS5Padding"; // 7 days
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public AuthenticationService(UserRepository userRepository, SmsaRoleRepository smsaRoleRepository, UserSessionTokenRepository userSessionTokenRepository) {
         this.userRepository = userRepository;
@@ -251,6 +264,7 @@ public class AuthenticationService {
             userSessionToken.setDeviceHash(authenticationRequest.getDeviceHase());
             userSessionToken.setToken(token);
             userSessionToken.setStatus(true);
+            userSessionToken.setLastLogin(LocalDateTime.now());
             userSessionTokenRepository.save(userSessionToken);
         }else {
             userSessionTokenData.setToken(user.getAccessToken());
@@ -278,5 +292,97 @@ public class AuthenticationService {
         userSessionTokenData.setToken(newAccessToken);
         userSessionTokenRepository.save(userSessionTokenData);
 
+    }
+    public ResponseEntity<?> userLoginDetails(String decryptData) {
+
+        String token=decrypt(decryptData);
+        logger.info("Token received: {}", token);
+
+        try{
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+          String loginId = claims.getId();
+
+            List<UserSessionToken> sessionData = userSessionTokenRepository.findByUserIdOrderByLastLoginDesc(loginId);
+            if (sessionData.size() >=2){
+
+                UserSessionToken session = sessionData.get(1);
+                UserLoginDetailsResponse response = new UserLoginDetailsResponse(
+                        session.getUserId(),
+                        session.getLastLogin()
+                );
+                // 1. Convert object to JSON
+                String json = objectMapper.writeValueAsString(response);
+
+                // 2. Encrypt the JSON
+                String encrypted = encrypt(json); // your AES encryption method
+                return new ResponseEntity<>(encrypted, HttpStatus.OK);
+            }else {
+                UserSessionToken session = sessionData.get(0);
+                UserLoginDetailsResponse response = new UserLoginDetailsResponse(
+                        session.getUserId(),
+                        session.getLastLogin()
+                );
+                // 1. Convert object to JSON
+                String json = objectMapper.writeValueAsString(response);
+
+                // 2. Encrypt the JSON
+                String encrypted = encrypt(json); // your AES encryption method
+                return new ResponseEntity<>(encrypted, HttpStatus.OK);
+
+            }
+
+       } catch (JwtException jwtEx) {
+        logger.error("JWT parsing failed: {}", jwtEx.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid JWT token");
+       } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public String encrypt(String data) {
+        try {
+            // 16-byte key for AES-128
+            SecretKeySpec key = new SecretKeySpec(encrypt.getBytes(StandardCharsets.UTF_8), "AES");
+
+            // Use the same fixed IV as decryption (NOT secure for real systems)
+            byte[] ivBytes = "1234567890abcdef".getBytes(StandardCharsets.UTF_8);  // 16 bytes
+            IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
+
+            Cipher cipher = Cipher.getInstance(ALGORITHM);
+            cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+
+            byte[] encryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+
+            // Encode result to Base64
+            return Base64.getEncoder().encodeToString(encryptedBytes);
+
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public String decrypt(String encryptedAcc) {
+        try {
+            // 16-byte key for AES-128
+            SecretKeySpec key = new SecretKeySpec(encrypt.getBytes(StandardCharsets.UTF_8), "AES");
+
+            // Example: fixed IV (not secure for production use)
+            byte[] ivBytes = "1234567890abcdef".getBytes(StandardCharsets.UTF_8);  // 16 bytes
+            IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
+
+            Cipher cipher = Cipher.getInstance(ALGORITHM);
+            cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+
+            byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(encryptedAcc));
+            return new String(decrypted, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

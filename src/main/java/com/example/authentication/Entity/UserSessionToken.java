@@ -11,6 +11,7 @@ package com.example.authentication.Entity;
 
 
 import javax.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_session_tokens")
@@ -33,14 +34,18 @@ public class UserSessionToken {
     @Column(nullable = false)
     private Boolean status;
 
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
+
     // Constructors
     public UserSessionToken() {}
 
-    public UserSessionToken(String userId, String deviceHash, String token, Boolean status) {
+    public UserSessionToken(String userId, String deviceHash, String token, Boolean status,LocalDateTime lastLogin) {
         this.userId = userId;
         this.deviceHash = deviceHash;
         this.token = token;
         this.status = status;
+        this.lastLogin=lastLogin;
     }
 
     // Getters and Setters
@@ -82,6 +87,13 @@ public class UserSessionToken {
 
     public void setStatus(Boolean status) {
         this.status = status;
+    }
+    public LocalDateTime getLastLogin() {
+        return lastLogin;
+    }
+
+    public void setLastLogin(LocalDateTime lastLogin) {
+        this.lastLogin = lastLogin;
     }
     
 }

@@ -148,7 +148,7 @@ public class AuthenticationController {
         logger.debug("Validating user: {}", username);
         return true;
     }
-     @PostMapping("/logout")
+    @PostMapping("/logout")
     public ResponseEntity<String> logout(HttpServletRequest request) {
         logger.debug("Inside Logout Method");
 
@@ -167,6 +167,27 @@ public class AuthenticationController {
         } catch (Exception e) {
             logger.error("Error occurred during logout: ", e);
             return new ResponseEntity<>("Internal Server Error during logout", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/loginDetails")
+    public ResponseEntity<?> userLoginDetails(HttpServletRequest request) {
+        logger.debug("Inside loginDetails Method");
+
+        try {
+            String token = request.getHeader("Authorization");
+
+            if (token == null || token.isEmpty()) {
+                logger.warn("Authorization token missing in request header");
+                return new ResponseEntity<>("Authorization token is missing", HttpStatus.BAD_REQUEST);
+            }
+
+            logger.info("Received request: {}", token);
+            return authenticationService.userLoginDetails(token);
+
+        } catch (Exception e) {
+            logger.error("Error occurred during getting loginDetails: ", e);
+            return new ResponseEntity<>("Internal Server Error during loginDetails", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

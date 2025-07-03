@@ -7,6 +7,8 @@ package com.example.authentication.Repo;
 import com.example.authentication.Entity.UserSessionToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 /**
  *
  * @author abcom
@@ -19,5 +21,6 @@ public interface UserSessionTokenRepository extends JpaRepository<UserSessionTok
 
 
     UserSessionToken findByUserIdAndTokenAndDeviceHashAndStatusTrue(String userId,String token, String deviceHash);
+    List<UserSessionToken> findByUserIdOrderByLastLoginDesc(String userId);
 
 }
