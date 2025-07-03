@@ -74,7 +74,7 @@ public class AuthenticationController {
     public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) throws NamingException {
         logger.info("AuthenticationController -> authenticate called for user: {}", authenticationRequest.getUsername());
         logger.info("Enter in LDAP Authentication");
-        SmsaUser ldpData=ldapAuthService.ldapAuthService(authenticationRequest);
+        //SmsaUser ldpData=ldapAuthService.ldapAuthService(authenticationRequest);
         logger.info("Successfully LDAP Authentication is Done");
 
         try {
@@ -183,7 +183,13 @@ public class AuthenticationController {
             }
 
             logger.info("Received request: {}", token);
-            return authenticationService.userLoginDetails(token);
+
+            String encryptedResponse =authenticationService.userLoginDetails(token);
+            Map<String, String> response = new HashMap<>();
+            response.put("data", encryptedResponse);
+
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             logger.error("Error occurred during getting loginDetails: ", e);

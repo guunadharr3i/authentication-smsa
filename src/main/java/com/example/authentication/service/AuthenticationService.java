@@ -293,57 +293,46 @@ public class AuthenticationService {
         userSessionTokenRepository.save(userSessionTokenData);
 
     }
-    public ResponseEntity<?> userLoginDetails(String decryptData) {
+    public String userLoginDetails(String encryptedToken) {
+        try {
+            String token = decrypt(encryptedToken); // decrypt the encrypted token
+            logger.info("Decrypted token: {}", token);
 
-        String token=decrypt(decryptData);
-        logger.info("Token received: {}", token);
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
 
-        try{
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-
-          String loginId = claims.getId();
+            String loginId = claims.getId();
 
             List<UserSessionToken> sessionData = userSessionTokenRepository.findByUserIdOrderByLastLoginDesc(loginId);
-            if (sessionData.size() >=2){
 
-                UserSessionToken session = sessionData.get(1);
-                UserLoginDetailsResponse response = new UserLoginDetailsResponse(
-                        session.getUserId(),
-                        session.getLastLogin()
-                );
-                // 1. Convert object to JSON
-                String json = objectMapper.writeValueAsString(response);
-
-                // 2. Encrypt the JSON
-                String encrypted = encrypt(json); // your AES encryption method
-                return new ResponseEntity<>(encrypted, HttpStatus.OK);
-            }else {
-                UserSessionToken session = sessionData.get(0);
-                UserLoginDetailsResponse response = new UserLoginDetailsResponse(
-                        session.getUserId(),
-                        session.getLastLogin()
-                );
-                // 1. Convert object to JSON
-                String json = objectMapper.writeValueAsString(response);
-
-                // 2. Encrypt the JSON
-                String encrypted = encrypt(json); // your AES encryption method
-                return new ResponseEntity<>(encrypted, HttpStatus.OK);
-
+            if (sessionData == null || sessionData.isEmpty()) {
+                throw new RuntimeException("No session data found for user: " + loginId);
             }
 
-       } catch (JwtException jwtEx) {
-        logger.error("JWT parsing failed: {}", jwtEx.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid JWT token");
-       } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+            // If more than one session, get the previous login
+            int index = sessionData.size() >= 2 ? 1 : 0;
+            UserSessionToken session = sessionData.get(index);
 
+            UserLoginDetailsResponse response = new UserLoginDetailsResponse(
+                    session.getUserId(),
+                    session.getLastLogin()
+            );
+
+            // Convert to JSON
+            String json = objectMapper.writeValueAsString(response);
+
+            // Encrypt and return
+            return encrypt(json);
+
+        } catch (Exception e) {
+            logger.error("Failed to process login details", e);
+            throw new RuntimeException("Unable to retrieve login details", e);
+        }
     }
+
 
     public String encrypt(String data) {
         try {
