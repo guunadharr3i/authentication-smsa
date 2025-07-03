@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "SMSA_USERS")
-public class SmsaUser implements Serializable{
+public class SmsaUser implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sms_user_seq")

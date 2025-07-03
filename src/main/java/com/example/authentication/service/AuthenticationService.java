@@ -29,6 +29,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -55,7 +56,7 @@ public class AuthenticationService {
     private IvParameterSpec ivSpec;
 //    private static final String encrypt="";
 
-//    private static final String ALGO = "AES";
+    //    private static final String ALGO = "AES";
     public static String ALGORITHM = "AES/CBC/PKCS5Padding"; // 7 days
     @Autowired
     private ObjectMapper objectMapper;
@@ -199,15 +200,19 @@ public class AuthenticationService {
             throw new RuntimeException("Failed to create user: " + e.getMessage());
         }
     }
+
     public List<SmsaUser> getUsers() {
         return userRepository.findAll();
 
     }
 
-    public ResponseEntity<String> logout(String token, String deviceHash) {
+    public ResponseEntity<String> logout(String encodeToken, String encodeDeviceHash) {
         logger.debug("Inside logout method");
 
         try {
+
+            String token = decrypt(encodeToken);
+            String deviceHash = decrypt(encodeDeviceHash);
             if (token == null || token.trim().isEmpty()) {
                 logger.warn("Missing or empty Authorization token");
                 return ResponseEntity.badRequest().body("Missing or invalid Authorization header");
@@ -263,24 +268,25 @@ public class AuthenticationService {
 
     public void validateUserDevice(AuthenticationRequest authenticationRequest, String token) {
 
-        UserSessionToken userSessionTokenData=userSessionTokenRepository.findByUserIdAndDeviceHashAndStatusTrue(authenticationRequest.getUsername(), authenticationRequest.getDeviceHase());
+        UserSessionToken userSessionTokenData = userSessionTokenRepository.findByUserIdAndDeviceHashAndStatusTrue(authenticationRequest.getUsername(), authenticationRequest.getDeviceHase());
 
         SmsaUser user = userRepository.findByLoginId(authenticationRequest.getUsername());
 
 
-        if (userSessionTokenData==null){
-            UserSessionToken userSessionToken=new UserSessionToken();
+        if (userSessionTokenData == null) {
+            UserSessionToken userSessionToken = new UserSessionToken();
             userSessionToken.setUserId(authenticationRequest.getUsername());
             userSessionToken.setDeviceHash(authenticationRequest.getDeviceHase());
             userSessionToken.setToken(token);
             userSessionToken.setStatus(true);
             userSessionToken.setLastLogin(LocalDateTime.now());
             userSessionTokenRepository.save(userSessionToken);
-        }else {
+        } else {
             userSessionTokenData.setToken(user.getAccessToken());
             userSessionTokenRepository.save(userSessionTokenData);
         }
     }
+
     public void verifyValidateUserDevice(String token, String newAccessToken, String deviceHash) {
 
         Claims claims = Jwts.parserBuilder()
@@ -303,6 +309,7 @@ public class AuthenticationService {
         userSessionTokenRepository.save(userSessionTokenData);
 
     }
+
     public String userLoginDetails(String encryptedToken) {
         try {
             String token = decrypt(encryptedToken); // decrypt the encrypted token

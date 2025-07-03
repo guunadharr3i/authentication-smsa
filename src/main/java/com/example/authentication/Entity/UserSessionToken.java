@@ -5,7 +5,6 @@
 package com.example.authentication.Entity;
 
 /**
- *
  * @author abcom
  */
 
@@ -17,7 +16,7 @@ import java.time.LocalDateTime;
 @Table(name = "user_session_tokens")
 public class UserSessionToken {
 
-      @Id
+    @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_session_tokens_seq")
     @SequenceGenerator(name = "user_session_tokens_seq", sequenceName = "user_session_tokens_seq", allocationSize = 1)
     private Long id;
@@ -25,7 +24,7 @@ public class UserSessionToken {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
-    @Column(name = "device_hash",unique = true, nullable = false)
+    @Column(name = "device_hash", unique = true, nullable = false)
     private String deviceHash;
 
     @Column(unique = true)
@@ -38,14 +37,15 @@ public class UserSessionToken {
     private LocalDateTime lastLogin;
 
     // Constructors
-    public UserSessionToken() {}
+    public UserSessionToken() {
+    }
 
-    public UserSessionToken(String userId, String deviceHash, String token, Boolean status,LocalDateTime lastLogin) {
+    public UserSessionToken(String userId, String deviceHash, String token, Boolean status, LocalDateTime lastLogin) {
         this.userId = userId;
         this.deviceHash = deviceHash;
         this.token = token;
         this.status = status;
-        this.lastLogin=lastLogin;
+        this.lastLogin = lastLogin;
     }
 
     // Getters and Setters
@@ -88,6 +88,7 @@ public class UserSessionToken {
     public void setStatus(Boolean status) {
         this.status = status;
     }
+
     public LocalDateTime getLastLogin() {
         return lastLogin;
     }
@@ -95,5 +96,5 @@ public class UserSessionToken {
     public void setLastLogin(LocalDateTime lastLogin) {
         this.lastLogin = lastLogin;
     }
-    
+
 }
