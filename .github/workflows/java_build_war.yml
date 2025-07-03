@@ -1,27 +1,29 @@
-name: Build and Release WAR by Env Tag
+name: Build and Upload WAR to pCloud by Tag
 
 on:
   push:
     tags:
-      - '*-v*.*.*'  # Example: uat-v1.0.0, cug-v1.2.3, prod-v2.0.0
+      - '*-v*.*.*'  # Matches uat-v1.0.0, cug-v1.2.3, prod-v2.0.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.set_env.outputs.env_name }}
 
     steps:
       - name: Extract Environment from Tag
         id: extract_env
         run: |
           TAG_NAME="${GITHUB_REF##*/}"
-          ENV_PREFIX="${TAG_NAME%%-*}"   # e.g., 'uat' from 'uat-v1.0.0'
+          ENV_PREFIX="${TAG_NAME%%-*}"   # e.g., uat from uat-v1.0.0
           echo "env_prefix=$ENV_PREFIX" >> $GITHUB_OUTPUT
 
       - name: Set GitHub Environment
         id: set_env
         run: |
           PREFIX=${{ steps.extract_env.outputs.env_prefix }}
-          ENV_NAME=$(echo $PREFIX | tr '[:lower:]' '[:upper:]')  # e.g., 'UAT'
+          ENV_NAME=$(echo $PREFIX | tr '[:lower:]' '[:upper:]')  # UAT, CUG, PROD
           echo "env_name=$ENV_NAME" >> $GITHUB_OUTPUT
 
       - name: Setup Environment Context
@@ -48,7 +50,7 @@ jobs:
       - name: Run Tests
         run: mvn test
 
-      - name: Upload WAR Artifact
+      - name: Upload WAR Artifact to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: war-artifact
@@ -61,6 +63,24 @@ jobs:
           files: target/*.war
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone for pCloud
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "[Pcloud]" >> ~/.config/rclone/rclone.conf
+          echo "type = pcloud" >> ~/.config/rclone/rclone.conf
+          echo 'token = ${{ secrets.RCLONE_PCLOUD_TOKEN_JSON }}' >> ~/.config/rclone/rclone.conf
+
+      - name: Upload WAR to pCloud
+        run: |
+          ENV=${{ needs.build.outputs.env_name }}
+          TARGET_DIR="Pcloud:/GitHubWARs/$ENV"
+          rclone mkdir "$TARGET_DIR"
+          rclone copy target/*.war "$TARGET_DIR" --progress
 
 
 
