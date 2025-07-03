@@ -16,6 +16,7 @@ import io.jsonwebtoken.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
@@ -43,7 +44,16 @@ public class AuthenticationService {
     private static final String SECRET_KEY = "mySuperSecureSecretKeyThatIsAtLeast32Bytes!";
     private static final long EXPIRATION_TIME = 10 * 60 * 3000; // 30 minutes
     private static final long REFRESH_TOKEN_EXPIRATION = 7 * 24 * 60 * 60 * 1000; //
-    private static final String encrypt="1836204826394192";
+
+    @Value("${aes.encryption.key}")
+    private String encryptionKey;
+
+    @Value("${aes.encryption.iv}")
+    private String iv;
+
+    private SecretKeySpec keySpec;
+    private IvParameterSpec ivSpec;
+//    private static final String encrypt="";
 
 //    private static final String ALGO = "AES";
     public static String ALGORITHM = "AES/CBC/PKCS5Padding"; // 7 days
@@ -337,10 +347,10 @@ public class AuthenticationService {
     public String encrypt(String data) {
         try {
             // 16-byte key for AES-128
-            SecretKeySpec key = new SecretKeySpec(encrypt.getBytes(StandardCharsets.UTF_8), "AES");
+            SecretKeySpec key = new SecretKeySpec(encryptionKey.getBytes(StandardCharsets.UTF_8), "AES");
 
             // Use the same fixed IV as decryption (NOT secure for real systems)
-            byte[] ivBytes = "1234567890abcdef".getBytes(StandardCharsets.UTF_8);  // 16 bytes
+            byte[] ivBytes = iv.getBytes(StandardCharsets.UTF_8);  // 16 bytes
             IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
@@ -359,10 +369,10 @@ public class AuthenticationService {
     public String decrypt(String encryptedAcc) {
         try {
             // 16-byte key for AES-128
-            SecretKeySpec key = new SecretKeySpec(encrypt.getBytes(StandardCharsets.UTF_8), "AES");
+            SecretKeySpec key = new SecretKeySpec(encryptionKey.getBytes(StandardCharsets.UTF_8), "AES");
 
             // Example: fixed IV (not secure for production use)
-            byte[] ivBytes = "1234567890abcdef".getBytes(StandardCharsets.UTF_8);  // 16 bytes
+            byte[] ivBytes = iv.getBytes(StandardCharsets.UTF_8);  // 16 bytes
             IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
