@@ -72,20 +72,20 @@ public class AuthenticationController {
 
 
     @PostMapping("/authenticate")
-    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authenticationRequest) throws NamingException {
-        logger.info("AuthenticationController -> authenticate called for user: {}", authenticationRequest.getUsername());
+    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest request) throws NamingException {
+        logger.info("AuthenticationController -> authenticate called for user: {}", request.getUsername());
         logger.info("Enter in LDAP Authentication");
 
-        String decryptedUsername = authenticationService.decrypt(authenticationRequest.getUsername());
-        String decryptedPassword = authenticationService.decrypt(authenticationRequest.getPassword());
-        String decryptedDeviceHash = authenticationService.decrypt(authenticationRequest.getDeviceHase());
+        String decryptedUsername = authenticationService.decrypt(request.getUsername());
+        String decryptedPassword = authenticationService.decrypt(request.getPassword());
+        String decryptedDeviceHash = authenticationService.decrypt(request.getDeviceHase());
 
-        AuthenticationRequest requestData = new AuthenticationRequest();
-        requestData.setUsername(decryptedUsername);
-        requestData.setPassword(decryptedPassword);
-        requestData.setDeviceHase(decryptedDeviceHash);
+        AuthenticationRequest authenticationRequest = new AuthenticationRequest();
+        authenticationRequest.setUsername(decryptedUsername);
+        authenticationRequest.setPassword(decryptedPassword);
+        authenticationRequest.setDeviceHase(decryptedDeviceHash);
 
-        SmsaUser ldpData = ldapAuthService.ldapAuthService(requestData);
+        SmsaUser ldpData = ldapAuthService.ldapAuthService(authenticationRequest);
         logger.info("Successfully LDAP Authentication is Done");
 
         try {

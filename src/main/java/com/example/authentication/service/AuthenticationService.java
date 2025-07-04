@@ -330,8 +330,7 @@ public class AuthenticationService {
             }
 
             // If more than one session, get the previous login
-            int index = sessionData.size() >= 2 ? 1 : 0;
-            UserSessionToken session = sessionData.get(index);
+            UserSessionToken session = sessionData.size() >= 2 ? sessionData.get(1) : sessionData.get(0);
 
             UserLoginDetailsResponse response = new UserLoginDetailsResponse(
                     session.getUserId(),
