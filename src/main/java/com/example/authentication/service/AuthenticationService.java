@@ -52,11 +52,6 @@ public class AuthenticationService {
     @Value("${aes.encryption.iv}")
     private String iv;
 
-    private SecretKeySpec keySpec;
-    private IvParameterSpec ivSpec;
-//    private static final String encrypt="";
-
-    //    private static final String ALGO = "AES";
     public static String ALGORITHM = "AES/CBC/PKCS5Padding"; // 7 days
     @Autowired
     private ObjectMapper objectMapper;

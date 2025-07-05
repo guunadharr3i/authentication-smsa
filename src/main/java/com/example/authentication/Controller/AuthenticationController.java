@@ -23,31 +23,33 @@ import org.springframework.http.HttpStatus;
 @RequestMapping
 @CrossOrigin(origins = "*")
 public class AuthenticationController {
-
+    
     @Autowired
     private AuthenticationService authenticationService;
-
+    
     @Autowired
     private LdapService ldapAuthService;
-
+    
     private static final Logger logger = LogManager.getLogger(AuthenticationController.class);
-
+    
     @GetMapping("/")
     public String hello(Model model) {
         logger.info("AuthenticationController -> hello endpoint called");
         return "Hey Developer! Authentication Application Deployed Successfully";
     }
-
+    
     @PostMapping("/refresh-token")
     public ResponseEntity<?> validateAndRefreshAccessToken(@RequestBody Map<String, String> tokenRequest) {
         logger.info("AuthenticationController -> refresh-token called");
+        logger.debug("Encrypted Token: " + tokenRequest.get("token"));
+        logger.debug("Encrypted Device Hash: " + tokenRequest.get("DeviceHash"));
         String oldToken = authenticationService.decrypt(tokenRequest.get("token"));
-
+        
         if (oldToken == null || oldToken.isEmpty()) {
             logger.warn("No token provided for refresh");
             return ResponseEntity.badRequest().body("Token is required");
         }
-
+        
         try {
             String newAccessToken = authenticationService.validateToken(oldToken);
             authenticationService.verifyValidateUserDevice(oldToken, newAccessToken, authenticationService.decrypt(tokenRequest.get("DeviceHash")));
@@ -60,7 +62,7 @@ public class AuthenticationController {
             return ResponseEntity.status(401).body("Invalid or expired token: " + e.getMessage());
         }
     }
-
+    
     @PostMapping("/ladp")
     public ResponseEntity<?> ldpLogin(@RequestBody AuthenticationRequest authenticationRequest) throws NamingException {
         logger.info("AuthenticationController -> authenticate called for user: {}", authenticationRequest.getUsername());
@@ -69,55 +71,55 @@ public class AuthenticationController {
         logger.info("Successfully LDAP Authentication is Done");
         return ResponseEntity.status(401).body("Successfully  LDAP Authentication is Done");
     }
-
-
+    
     @PostMapping("/authenticate")
     public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest request) throws NamingException {
         logger.info("AuthenticationController -> authenticate called for user: {}", request.getUsername());
         logger.info("Enter in LDAP Authentication");
-
+        
         String decryptedUsername = authenticationService.decrypt(request.getUsername());
         String decryptedPassword = authenticationService.decrypt(request.getPassword());
         String decryptedDeviceHash = authenticationService.decrypt(request.getDeviceHase());
-
+        
         AuthenticationRequest authenticationRequest = new AuthenticationRequest();
         authenticationRequest.setUsername(decryptedUsername);
         authenticationRequest.setPassword(decryptedPassword);
         authenticationRequest.setDeviceHase(decryptedDeviceHash);
-
+        
         SmsaUser ldpData = ldapAuthService.ldapAuthService(authenticationRequest);
         logger.info("Successfully LDAP Authentication is Done");
-
+        
         try {
             boolean isValidUser = validateUser(authenticationRequest.getUsername(), authenticationRequest.getPassword());
-
+            
             SmsaUser userData = authenticationService.getUserByLoginId(authenticationRequest.getUsername());
             if (!isValidUser) {
                 logger.warn("Invalid login attempt for user: {}", authenticationRequest.getUsername());
                 return ResponseEntity.status(401).body("Invalid credentials");
             }
             authenticationService.validateUserDevice(authenticationRequest, userData.getAccessToken());
-
+            
             Map<String, String> tokens = new HashMap<>();
             tokens.put("accessToken", authenticationService.encrypt(userData.getAccessToken()));
-
+            
             logger.info("User authenticated successfully: {}", authenticationRequest.getUsername());
+            logger.debug("Encrypted Token: " + tokens.get("accessToken"));
             return ResponseEntity.ok(tokens);
-
+            
         } catch (Exception e) {
             logger.error("Authentication failed for user: {}", authenticationRequest.getUsername(), e);
             return ResponseEntity.status(500).body("Authentication failed: " + e.getMessage());
         }
     }
-
+    
     @PostMapping("/user/role")
     public ResponseEntity<?> createUserRole(@RequestBody Map<String, String> requestData) {
         logger.info("AuthenticationController -> user/role called");
-
+        
         try {
             Map<String, SmsaRole> tokens = new HashMap<>();
             tokens.put("Roles", authenticationService.creteUserRoleData(requestData));
-
+            
             logger.info("User role created successfully");
             return ResponseEntity.ok(tokens);
         } catch (Exception e) {
@@ -125,15 +127,15 @@ public class AuthenticationController {
             return ResponseEntity.status(500).body("Error creating user role: " + e.getMessage());
         }
     }
-
+    
     @PostMapping("/createUser")
     public ResponseEntity<?> createUser(@RequestBody Map<String, String> requestData) {
         logger.info("AuthenticationController -> createUser called");
-
+        
         try {
             Map<String, SmsaUser> tokens = new HashMap<>();
             tokens.put("User Created", authenticationService.creteUser(requestData));
-
+            
             logger.info("User created successfully");
             return ResponseEntity.ok(tokens);
         } catch (Exception e) {
@@ -141,7 +143,7 @@ public class AuthenticationController {
             return ResponseEntity.status(500).body("Error creating user: " + e.getMessage());
         }
     }
-
+    
     @GetMapping("/getUsers")
     public ResponseEntity<?> getUsers() {
         try {
@@ -155,59 +157,57 @@ public class AuthenticationController {
                     .body("An error occurred while fetching users: " + e.getMessage());
         }
     }
-
+    
     private boolean validateUser(String username, String password) {
         logger.debug("Validating user: {}", username);
         return true;
     }
-
+    
     @PostMapping("/logout")
     public ResponseEntity<String> logout(HttpServletRequest request) {
         logger.debug("Inside Logout Method");
-
+        
         try {
             String token = request.getHeader("Authorization");
             String deviceHash = request.getHeader("DeviceHash");
-
+            
             if (token == null || token.isEmpty()) {
                 logger.warn("Authorization token missing in request header");
                 return new ResponseEntity<>("Authorization token is missing", HttpStatus.BAD_REQUEST);
             }
-
+            
             logger.info("Token received: {}", token);
             return authenticationService.logout(token, deviceHash);
-
+            
         } catch (Exception e) {
             logger.error("Error occurred during logout: ", e);
             return new ResponseEntity<>("Internal Server Error during logout", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
+    
     @PostMapping("/loginDetails")
     public ResponseEntity<?> userLoginDetails(HttpServletRequest request) {
         logger.debug("Inside loginDetails Method");
-
+        
         try {
             String token = request.getHeader("Authorization");
-
+            
             if (token == null || token.isEmpty()) {
                 logger.warn("Authorization token missing in request header");
                 return new ResponseEntity<>("Authorization token is missing", HttpStatus.BAD_REQUEST);
             }
-
+            
             logger.info("Received request: {}", token);
-
+            
             String encryptedResponse = authenticationService.userLoginDetails(token);
             Map<String, String> response = new HashMap<>();
             response.put("data", encryptedResponse);
-
-
+            
             return ResponseEntity.ok(response);
-
+            
         } catch (Exception e) {
             logger.error("Error occurred during getting loginDetails: ", e);
             return new ResponseEntity<>("Internal Server Error during loginDetails", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }
-    
